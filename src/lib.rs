@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::ops::Add;
 
 #[derive(Debug)]
 struct FieldElement {
@@ -27,6 +28,20 @@ impl Display for FieldElement {
     }
 }
 
+impl Add for FieldElement {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        if self.prime != rhs.prime {
+            panic!("Elements must be in the same field")
+        }
+        Self {
+            num: (self.num + rhs.num) % self.prime,
+            prime: self.prime,
+        }
+    }   
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -38,5 +53,14 @@ mod tests {
 
         assert_eq!(a, a);
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn test_field_add() {
+        let a = FieldElement::from(7, 13);
+        let b = FieldElement::from(12, 13);
+        let c = FieldElement::from(6, 13);
+
+        assert_eq!(a + b, c);
     }
 }
