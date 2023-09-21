@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::ops::{Add, Sub};
+use std::ops::{Add, Sub, Mul};
 
 #[derive(Debug)]
 struct FieldElement {
@@ -13,6 +13,14 @@ impl FieldElement {
            panic!("Num {} not in field of order {}", num, prime);
         }
         Self { num, prime }
+    }
+
+    pub fn pow(self, exp: u32) -> Self {
+        let res = self.num.pow(exp) % self.prime;
+        Self {
+            num: res,
+            prime: self.prime,
+        }
     }
 }
 
@@ -57,6 +65,20 @@ impl Sub for FieldElement {
     }
 }
 
+impl Mul for FieldElement {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        if self.prime != rhs.prime {
+            panic!("Elements must be in the same field")
+        }
+        Self {
+            num: self.num * rhs.num % self.prime,
+            prime: self.prime,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,5 +108,22 @@ mod tests {
         let c = FieldElement::from(12, 19);
 
         assert_eq!(a - b, c);
+    }
+
+    #[test]
+    fn test_field_mul() {
+        let a = FieldElement::from(3, 13);
+        let b = FieldElement::from(12, 13);
+        let c = FieldElement::from(10, 13);
+
+        assert_eq!(a * b, c);
+    }
+
+    #[test]
+    fn test_field_pow() {
+        let a = FieldElement::from(3, 13);
+        let b = FieldElement::from(1, 13);
+
+        assert_eq!(a.pow(3), b);
     }
 }
