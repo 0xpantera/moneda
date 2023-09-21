@@ -15,10 +15,11 @@ impl FieldElement {
         Self { num, prime }
     }
 
-    pub fn pow(self, exp: u32) -> Self {
-        let res = self.num.pow(exp) % self.prime;
+    pub fn pow(self, exp: i32) -> Self {
+        let n = exp % (self.prime as i32 - 1);
+        let num = self.num.pow(n.try_into().unwrap()) % self.prime;
         Self {
-            num: res,
+            num,
             prime: self.prime,
         }
     }
