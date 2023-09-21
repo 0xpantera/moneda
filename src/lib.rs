@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::ops::{Add, Sub, Mul};
+use std::ops::{Add, Sub, Mul, Div};
 
 #[derive(Debug)]
 struct FieldElement {
@@ -74,6 +74,21 @@ impl Mul for FieldElement {
         }
         Self {
             num: self.num * rhs.num % self.prime,
+            prime: self.prime,
+        }
+    }
+}
+
+impl Div for FieldElement {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        if self.prime != rhs.prime {
+            panic!("Elements must be in the same field")
+        }
+        let res: u32 = (self.prime - 2).try_into().unwrap();
+        Self {
+            num: self.num * rhs.num.pow(res) % self.prime,
             prime: self.prime,
         }
     }
