@@ -1,26 +1,31 @@
 #![allow(dead_code)]
+
 use std::ops::{Add};
 use std::fmt::Display;
 
-#[derive(Debug, Clone, Copy)]
+use num_bigint::{BigInt, ToBigInt};
+
+#[derive(Debug, Clone)]
 struct Point {
-    x: Option<isize>,
-    y: Option<isize>,
-    a: isize,
-    b: isize,
+    x: Option<BigInt>,
+    y: Option<BigInt>,
+    a: BigInt,
+    b: BigInt,
 }
 
 impl Point {
-    fn from(x: Option<isize>, y: Option<isize>, a: isize, b: isize) -> Self {
-        if let (Some(xs), Some(ys)) = (x, y) {
-            if ys^2 != xs^3 + a * xs + b {
-                panic!("({}, {}) is not on the curve", xs, ys);
-            } else {
-                return Point {x, y, a, b};
-            }
+    fn from(x: Option<BigInt>, y: Option<BigInt>, a: BigInt, b: BigInt) -> Self {
+        match (x.clone(), y.clone()) {
+            (Some(xs), Some(ys)) => {
+                if ys.pow(2) != xs.pow(3) + a.clone() * xs.clone() + b.clone() {
+                    panic!("({}, {}) is not on the curve", xs, ys);
+                }
+            },
+            (Some(xs), None) => panic!("({}, None) is not valid", xs),
+            (None, Some(ys)) => panic!("(None, {}) is not valid", ys),
+            (None, None) => {},
         }
-
-        Self { x: None, y: None, a, b, }
+        Self { x, y, a, b, }
     }
 }
 
@@ -64,19 +69,23 @@ impl Add for Point {
         // & find the point at which the line intersects the curve
         if self == rhs {
             let (x1, y1) = (self.x.unwrap(), self.y.unwrap());
-            let m = (3 * x1^2 + self.a) / (2 * y1);
-            let x3 = m^2 - 2*x1;
-            let y3 = m * (x1 - x3) - y1;
+            let m: BigInt = (3 * x1.clone().pow(2) + self.a.clone()) / (2 * y1.clone());
+            let x3: BigInt = m.clone().pow(2) - 2 * x1.clone();
+            let y3 = m * (x1 - x3.clone()) - y1;
             return Self { x: Some(x3), y: Some(y3), a: self.a, b: self.b };
+        }
+
+        if self == rhs && self.y == Some(BigInt::from(0)) {
+            return Self { x: None, y: None, a: self.a, b: self.b };
         }
 
         // both points are different
         let (x1, y1) = (self.x.unwrap(), self.y.unwrap());
         let (x2, y2) = (rhs.x.unwrap(), rhs.y.unwrap());
 
-        let m = (y2 - y1)/(x2 - x1);
-        let x3 = m^2 - x1 - x2;
-        let y3 = m * (x1 - x3) - y1;
+        let m = (y2.clone() - y1.clone())/(x2.clone() - x1.clone());
+        let x3 = m.clone().pow(2) - x1.clone() - x2.clone();
+        let y3 = m * (x1 - x3.clone()) - y1;
 
         Self { x: Some(x3), y: Some(y3), a: self.a, b: self.b }
 
@@ -91,44 +100,87 @@ mod tests {
     #[test]
     #[should_panic]
     fn point_outside_curve() {
-        Point::from(Some(-1), Some(-2), 5, 7);
+        Point::from(
+            Some(BigInt::from(-1)), 
+            Some(BigInt::from(-2)),
+            BigInt::from(5), 
+            BigInt::from(7)
+        );
     }
 
     #[test]
-    #[ignore = "example point not in curve"]
     fn test_ne() {
-        let a = Point::from(Some(3), Some(-7), 5, 7);
-        let b = Point::from(Some(18), Some(77), 5, 7);
-        assert!(a != b);
+        let x1 = BigInt::from(3);
+        let y1 = BigInt::from(-7);
+
+        let x2 = BigInt::from(18);
+        let y2 = BigInt::from(77);
+
+        let a = BigInt::from(5);
+        let b = BigInt::from(7);
+
+        let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
+        let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
+        assert!(p1 != p2);
     }
 
     #[test]
     fn test_add0() {
-        let a = Point::from(None, None, 5, 7);
-        let b = Point::from(Some(2), Some(5), 5, 7);
-        let c = Point::from(Some(2), Some(-5), 5, 7);
+        let x1 = BigInt::from(2);
+        let y1 = BigInt::from(5);
 
-        assert_eq!(a + b, b);
-        assert_eq!(b + a, b);
-        assert_eq!(b + c, a);
+        let x2 = BigInt::from(2);
+        let y2 = BigInt::from(-5);
+
+        let a = BigInt::from(5);
+        let b = BigInt::from(7);
+
+        let p1 = Point::from(None, None, a.clone(), b.clone());
+        let p2 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
+        let p3 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
+
+        assert_eq!(p1.clone() + p2.clone(), p2.clone());
+        assert_eq!(p2.clone() + p1.clone(), p2.clone());
+        assert_eq!(p2.clone() + p3.clone(), p1.clone());
     }
 
     #[test]
     fn test_add1() {
-        let a = Point::from(Some(3), Some(7), 5, 7);
-        let b = Point::from(Some(-1), Some(-1), 5, 7);
+        let x1 = BigInt::from(3);
+        let y1 = BigInt::from(7);
 
-        let c = Point::from(Some(2), Some(-5), 5, 7);
+        let x2 = BigInt::from(-1);
+        let y2 = BigInt::from(-1);
 
-        assert_eq!(a + b, c);
+        let x3 = BigInt::from(2);
+        let y3 = BigInt::from(-5);
+
+        let a = BigInt::from(5);
+        let b = BigInt::from(7);
+
+        let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
+        let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
+
+        let p3 = Point::from(Some(x3), Some(y3), a.clone(), b.clone());
+
+        assert_eq!(p1 + p2, p3);
     }
 
     #[test]
     fn test_add2() {
-        let a = Point::from(Some(-1), Some(-1), 5, 7);
-        let c = Point::from(Some(18), Some(77), 5, 7);
+        let x1 = BigInt::from(-1);
+        let y1 = BigInt::from(-1);
 
-        assert_eq!(a + a, c);
+        let x2 = BigInt::from(18);
+        let y2 = BigInt::from(77);
+
+        let a = BigInt::from(5);
+        let b = BigInt::from(7);
+
+        let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
+        let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
+
+        assert_eq!(p1.clone() + p1.clone(), p2);
     }
 
 }
