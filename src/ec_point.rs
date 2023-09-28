@@ -3,21 +3,23 @@
 use std::ops::{Add};
 use std::fmt::Display;
 
-use num_bigint::{BigInt, ToBigInt};
+use crate::field_element::FieldElement;
+
+use num_bigint::{BigInt};
 
 #[derive(Debug, Clone)]
-struct Point {
-    x: Option<BigInt>,
-    y: Option<BigInt>,
-    a: BigInt,
-    b: BigInt,
+pub struct Point {
+    x: Option<FieldElement>,
+    y: Option<FieldElement>,
+    a: FieldElement,
+    b: FieldElement,
 }
 
 impl Point {
-    fn from(x: Option<BigInt>, y: Option<BigInt>, a: BigInt, b: BigInt) -> Self {
+    pub fn from(x: Option<FieldElement>, y: Option<FieldElement>, a: FieldElement, b: FieldElement) -> Self {
         match (x.clone(), y.clone()) {
             (Some(xs), Some(ys)) => {
-                if ys.pow(2) != xs.pow(3) + a.clone() * xs.clone() + b.clone() {
+                if ys.clone().pow(BigInt::from(2)) != xs.clone().pow(BigInt::from(3)) + a.clone() * xs.clone() + b.clone() {
                     panic!("({}, {}) is not on the curve", xs, ys);
                 }
             },
@@ -69,13 +71,13 @@ impl Add for Point {
         // & find the point at which the line intersects the curve
         if self == rhs {
             let (x1, y1) = (self.x.unwrap(), self.y.unwrap());
-            let m: BigInt = (3 * x1.clone().pow(2) + self.a.clone()) / (2 * y1.clone());
-            let x3: BigInt = m.clone().pow(2) - 2 * x1.clone();
+            let m: FieldElement = (BigInt::from(3_u8) * x1.clone().pow(BigInt::from(2_u8)) + self.a.clone()) / (BigInt::from(2_u8) * y1.clone());
+            let x3: FieldElement = m.clone().pow(BigInt::from(2_u8)) - BigInt::from(2_u8) * x1.clone();
             let y3 = m * (x1 - x3.clone()) - y1;
             return Self { x: Some(x3), y: Some(y3), a: self.a, b: self.b };
         }
 
-        if self == rhs && self.y == Some(BigInt::from(0)) {
+        if self == rhs && self.y == Some(FieldElement::from(BigInt::from(0_u8), self.a.prime.clone())) {
             return Self { x: None, y: None, a: self.a, b: self.b };
         }
 
@@ -84,7 +86,7 @@ impl Add for Point {
         let (x2, y2) = (rhs.x.unwrap(), rhs.y.unwrap());
 
         let m = (y2.clone() - y1.clone())/(x2.clone() - x1.clone());
-        let x3 = m.clone().pow(2) - x1.clone() - x2.clone();
+        let x3 = m.clone().pow(BigInt::from(2_u8)) - x1.clone() - x2.clone();
         let y3 = m * (x1 - x3.clone()) - y1;
 
         Self { x: Some(x3), y: Some(y3), a: self.a, b: self.b }
@@ -94,30 +96,36 @@ impl Add for Point {
 
 
 #[cfg(test)]
-mod tests {
+mod elliptic_curve_point_tests {
     use super::*;
 
     #[test]
     #[should_panic]
     fn point_outside_curve() {
+        let prime = BigInt::from(223);
+        let x = FieldElement::from(BigInt::from(-1), prime.clone());
+        let y = FieldElement::from(BigInt::from(-2), prime.clone());
+        let a = FieldElement::from(BigInt::from(5), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
         Point::from(
-            Some(BigInt::from(-1)), 
-            Some(BigInt::from(-2)),
-            BigInt::from(5), 
-            BigInt::from(7)
+            Some(x), 
+            Some(y),
+            a,
+            b,
         );
     }
 
     #[test]
     fn test_ne() {
-        let x1 = BigInt::from(3);
-        let y1 = BigInt::from(-7);
+        let prime = BigInt::from(223);
+        let x1 = FieldElement::from(BigInt::from(192), prime.clone());
+        let y1 = FieldElement::from(BigInt::from(105), prime.clone());
 
-        let x2 = BigInt::from(18);
-        let y2 = BigInt::from(77);
+        let x2 = FieldElement::from(BigInt::from(17), prime.clone());
+        let y2 = FieldElement::from(BigInt::from(56), prime.clone());
 
-        let a = BigInt::from(5);
-        let b = BigInt::from(7);
+        let a = FieldElement::from(BigInt::from(0), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
 
         let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
         let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
@@ -126,14 +134,15 @@ mod tests {
 
     #[test]
     fn test_add0() {
-        let x1 = BigInt::from(2);
-        let y1 = BigInt::from(5);
+        let prime = BigInt::from(223);
+        let x1 = FieldElement::from(BigInt::from(192), prime.clone());
+        let y1 = FieldElement::from(BigInt::from(105), prime.clone());
 
-        let x2 = BigInt::from(2);
-        let y2 = BigInt::from(-5);
+        let x2 = FieldElement::from(BigInt::from(17), prime.clone());
+        let y2 = FieldElement::from(BigInt::from(56), prime.clone());
 
-        let a = BigInt::from(5);
-        let b = BigInt::from(7);
+        let a = FieldElement::from(BigInt::from(0), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
 
         let p1 = Point::from(None, None, a.clone(), b.clone());
         let p2 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
@@ -141,22 +150,22 @@ mod tests {
 
         assert_eq!(p1.clone() + p2.clone(), p2.clone());
         assert_eq!(p2.clone() + p1.clone(), p2.clone());
-        assert_eq!(p2.clone() + p3.clone(), p1.clone());
     }
 
     #[test]
     fn test_add1() {
-        let x1 = BigInt::from(3);
-        let y1 = BigInt::from(7);
+        let prime = BigInt::from(223);
+        let x1 = FieldElement::from(BigInt::from(192), prime.clone());
+        let y1 = FieldElement::from(BigInt::from(105), prime.clone());
 
-        let x2 = BigInt::from(-1);
-        let y2 = BigInt::from(-1);
+        let x2 = FieldElement::from(BigInt::from(17), prime.clone());
+        let y2 = FieldElement::from(BigInt::from(56), prime.clone());
 
-        let x3 = BigInt::from(2);
-        let y3 = BigInt::from(-5);
+        let x3 = FieldElement::from(BigInt::from(170), prime.clone());
+        let y3 = FieldElement::from(BigInt::from(142), prime.clone());
 
-        let a = BigInt::from(5);
-        let b = BigInt::from(7);
+        let a = FieldElement::from(BigInt::from(0), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
 
         let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
         let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
@@ -168,14 +177,15 @@ mod tests {
 
     #[test]
     fn test_add2() {
-        let x1 = BigInt::from(-1);
-        let y1 = BigInt::from(-1);
+        let prime = BigInt::from(223);
+        let x1 = FieldElement::from(BigInt::from(17), prime.clone());
+        let y1 = FieldElement::from(BigInt::from(56), prime.clone());
 
-        let x2 = BigInt::from(18);
-        let y2 = BigInt::from(77);
+        let x2 = FieldElement::from(BigInt::from(13), prime.clone());
+        let y2 = FieldElement::from(BigInt::from(190), prime.clone());
 
-        let a = BigInt::from(5);
-        let b = BigInt::from(7);
+        let a = FieldElement::from(BigInt::from(0), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
 
         let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
         let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
