@@ -4,6 +4,7 @@ use std::fmt::Display;
 use std::ops::{Add, Sub, Mul, Div};
 
 use num_bigint::{BigInt};
+use num_traits::cast::ToPrimitive;
 
 #[derive(Debug, Clone)]
 pub struct FieldElement {
@@ -26,6 +27,10 @@ impl FieldElement {
             num,
             prime: self.prime,
         }
+    }
+
+    pub fn is_odd(&self) -> bool {
+        self.num.to_i64().unwrap() % 2 != 0
     }
 }
 

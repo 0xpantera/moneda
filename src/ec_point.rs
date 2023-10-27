@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
-use std::ops::{Add};
+use std::ops::{Add, Mul, BitAnd, Shr};
 use std::fmt::Display;
 
 use crate::field_element::FieldElement;
 
 use num_bigint::{BigInt};
+use num_traits::ToPrimitive;
 
 #[derive(Debug, Clone)]
 pub struct Point {
@@ -56,8 +57,8 @@ impl Add for Point {
 
         // one of the points is the point at infinit
         // P + 0 = P or 0 + P = P
-        if self.x.is_none() { return rhs; }
-        if rhs.x.is_none() { return self; }
+        if self.x.is_none() || self.y.is_none() { return rhs; }
+        if rhs.x.is_none() || rhs.y.is_none() { return self; }
 
         // the x coordinate of both points is the same
         // the line is vertical and doesn't intersect at any other point
@@ -91,6 +92,25 @@ impl Add for Point {
 
         Self { x: Some(x3), y: Some(y3), a: self.a, b: self.b }
 
+    }
+}
+
+impl Mul<Point> for BigInt {
+    type Output = Point;
+
+    fn mul(self, rhs: Point) -> Self::Output {
+        let mut coef = self;
+        let mut current = rhs.clone();
+        let mut res = Point::from(None, None, rhs.a, rhs.b);
+
+        while coef > BigInt::from(0) {
+            if coef.to_i64().unwrap() % 2 != 0 {
+                res = res + current.clone();
+            }
+            current = current.clone() + current;
+            coef >>= 1;
+        }
+        res
     }
 }
 
@@ -191,6 +211,91 @@ mod elliptic_curve_point_tests {
         let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
 
         assert_eq!(p1.clone() + p1.clone(), p2);
+    }
+
+    #[test]
+    fn test_add3() {
+        let prime = BigInt::from(223);
+        let x1 = FieldElement::from(BigInt::from(170), prime.clone());
+        let y1 = FieldElement::from(BigInt::from(142), prime.clone());
+
+        let x2 = FieldElement::from(BigInt::from(60), prime.clone());
+        let y2 = FieldElement::from(BigInt::from(139), prime.clone());
+
+        let x3 = FieldElement::from(BigInt::from(220), prime.clone());
+        let y3 = FieldElement::from(BigInt::from(181), prime.clone());
+
+        let a = FieldElement::from(BigInt::from(0), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
+
+        let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
+        let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
+        let p3 = Point::from(Some(x3), Some(y3), a.clone(), b.clone());
+
+        assert_eq!(p1 + p2, p3);
+    }
+
+    #[test]
+    fn test_add4() {
+        let prime = BigInt::from(223);
+        let x1 = FieldElement::from(BigInt::from(47), prime.clone());
+        let y1 = FieldElement::from(BigInt::from(71), prime.clone());
+
+        let x2 = FieldElement::from(BigInt::from(17), prime.clone());
+        let y2 = FieldElement::from(BigInt::from(56), prime.clone());
+
+        let x3 = FieldElement::from(BigInt::from(215), prime.clone());
+        let y3 = FieldElement::from(BigInt::from(68), prime.clone());
+
+        let a = FieldElement::from(BigInt::from(0), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
+
+        let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
+        let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
+        let p3 = Point::from(Some(x3), Some(y3), a.clone(), b.clone());
+
+        assert_eq!(p1 + p2, p3);
+    }
+
+    #[test]
+    fn test_add5() {
+        let prime = BigInt::from(223);
+        let x1 = FieldElement::from(BigInt::from(143), prime.clone());
+        let y1 = FieldElement::from(BigInt::from(98), prime.clone());
+
+        let x2 = FieldElement::from(BigInt::from(76), prime.clone());
+        let y2 = FieldElement::from(BigInt::from(66), prime.clone());
+
+        let x3 = FieldElement::from(BigInt::from(47), prime.clone());
+        let y3 = FieldElement::from(BigInt::from(71), prime.clone());
+
+        let a = FieldElement::from(BigInt::from(0), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
+
+        let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
+        let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
+        let p3 = Point::from(Some(x3), Some(y3), a.clone(), b.clone());
+
+        assert_eq!(p1 + p2, p3);
+    }
+
+    #[test]
+    fn test_scalar_mul() {
+        let prime = BigInt::from(223);
+        let x1 = FieldElement::from(BigInt::from(47), prime.clone());
+        let y1 = FieldElement::from(BigInt::from(71), prime.clone());
+
+        let x2 = FieldElement::from(BigInt::from(194), prime.clone());
+        let y2 = FieldElement::from(BigInt::from(172), prime.clone());
+
+        let a = FieldElement::from(BigInt::from(0), prime.clone());
+        let b = FieldElement::from(BigInt::from(7), prime.clone());
+
+        let p1 = Point::from(Some(x1), Some(y1), a.clone(), b.clone());
+        let p2 = Point::from(Some(x2), Some(y2), a.clone(), b.clone());
+        let s = BigInt::from(17);
+
+        assert_eq!(s * p1, p2);
     }
 
 }
