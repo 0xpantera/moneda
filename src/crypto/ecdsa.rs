@@ -1,11 +1,11 @@
 use crate::crypto::keys::PrivateKey;
+use crate::crypto::rfc6979::generate_deterministic_nonce;
 use crate::curves::secp256k1::Secp256k1Params;
 use crate::errors::EcdsaError;
 use k256::elliptic_curve::bigint::{Encoding, NonZero, U256};
 use k256::elliptic_curve::point::AffineCoordinates;
-use k256::elliptic_curve::{Field, PrimeField};
+use k256::elliptic_curve::PrimeField;
 use k256::{ProjectivePoint, Scalar};
-use rand_core::OsRng;
 
 #[derive(Debug, Clone)]
 pub struct Signature {
@@ -14,62 +14,60 @@ pub struct Signature {
 }
 
 impl PrivateKey {
-    // Step 4: Sign message using private key and random nonce k
+    // Step 4: Sign message using private key and RFC 6979 deterministic nonce
     pub fn sign(&self, message_hash: &U256) -> Result<Signature, EcdsaError> {
-        loop {
-            // Generate random nonce k in range [1, n-1]
-            let k = Self::generate_nonce()?;
+        let order = Secp256k1Params::order();
+        let order_nonzero = NonZero::new(order).unwrap();
 
-            // Calculate R = k * G (using k256 for point multiplication)
-            let r_point = Secp256k1Params::generator() * k;
+        // Generate RFC 6979 deterministic nonce (no retry loop needed)
+        let privkey_bytes = self.as_u256().to_be_bytes();
+        let hash_bytes = message_hash.to_be_bytes();
+        let k = generate_deterministic_nonce(&privkey_bytes, &hash_bytes);
 
-            // Get x-coordinate: r = R.x mod n
-            let r_affine = r_point.to_affine();
-            let x_coord = r_affine.x();
-            let mut x_bytes = [0u8; 32];
-            x_bytes.copy_from_slice(&x_coord);
-            let r = U256::from_be_bytes(x_bytes);
-            let order = Secp256k1Params::order();
-            let order_nz = NonZero::new(order).unwrap();
-            let r = r % order_nz;
+        // Calculate R = k * G (using k256 for point multiplication)
+        let r_point = Secp256k1Params::generator() * k;
 
-            // If r = 0, try again with new nonce
-            if r == U256::ZERO {
-                continue;
-            }
+        // Get x-coordinate: r = R.x mod n (RFC compliant)
+        let r_affine = r_point.to_affine();
+        let x_coord = r_affine.x();
+        let mut x_bytes = [0u8; 32];
+        x_bytes.copy_from_slice(&x_coord);
+        let r_raw = U256::from_be_bytes(x_bytes);
+        let r = r_raw % order_nonzero; // Proper r = (k·G).x mod n
 
-            // Calculate s = k^(-1) * (h + r * privkey) mod n
-            // Convert message hash and r to scalars for arithmetic
-            let h_bytes: [u8; 32] = message_hash.to_be_bytes();
-            let h_scalar = Scalar::from_repr(h_bytes.into()).unwrap();
+        // Calculate s = k^(-1) * (h + r * privkey) mod n
+        // Convert message hash and r to scalars for arithmetic
+        let h_bytes: [u8; 32] = message_hash.to_be_bytes();
+        let h_scalar = Scalar::from_repr(h_bytes.into()).unwrap();
 
-            let r_bytes: [u8; 32] = r.to_be_bytes();
-            let r_scalar = Scalar::from_repr(r_bytes.into()).unwrap();
+        let r_bytes: [u8; 32] = r.to_be_bytes();
+        let r_scalar = Scalar::from_repr(r_bytes.into()).unwrap();
 
-            // Get private key as scalar
-            let privkey_bytes = self.as_u256().to_be_bytes();
-            let privkey_scalar = Scalar::from_repr(privkey_bytes.into()).unwrap();
+        // Get private key as scalar
+        let privkey_bytes = self.as_u256().to_be_bytes();
+        let privkey_scalar = Scalar::from_repr(privkey_bytes.into()).unwrap();
 
-            // Calculate k^(-1) mod n
-            let k_inv = k.invert().unwrap();
+        // Calculate k^(-1) mod n
+        let k_inv = k.invert().unwrap();
 
-            // Calculate s = k^(-1) * (h + r * privkey) mod n
-            let s_scalar = k_inv * (h_scalar + r_scalar * privkey_scalar);
-            let s_bytes = s_scalar.to_bytes();
-            let s = U256::from_be_bytes(s_bytes.into());
+        // Calculate s = k^(-1) * (h + r * privkey) mod n
+        let s_scalar = k_inv * (h_scalar + r_scalar * privkey_scalar);
+        let s_bytes = s_scalar.to_bytes();
+        let s_raw = U256::from_be_bytes(s_bytes.into());
 
-            // If s = 0, try again with new nonce
-            if s == U256::ZERO {
-                continue;
-            }
+        // Low-s normalization (BIP-62) - prevent signature malleability
+        let half_order = order >> 1;
+        let s = if s_raw > half_order {
+            order.wrapping_sub(&s_raw) // If s > n/2, use n - s instead
+        } else {
+            s_raw
+        };
 
-            return Ok(Signature { r, s });
-        }
-    }
+        // RFC 6979 guarantees valid r and s, but assert for safety
+        debug_assert!(r != U256::ZERO, "RFC 6979 should never produce r = 0");
+        debug_assert!(s != U256::ZERO, "RFC 6979 should never produce s = 0");
 
-    // Generate secure random nonce
-    fn generate_nonce() -> Result<Scalar, EcdsaError> {
-        Ok(Scalar::random(&mut OsRng))
+        Ok(Signature { r, s })
     }
 }
 
