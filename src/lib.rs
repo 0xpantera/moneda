@@ -1,3 +1,4 @@
-mod field_element;
-mod ec_point;
-mod ecc;
+pub mod arithmetic;
+pub mod crypto;
+pub mod curves;
+pub mod errors;
