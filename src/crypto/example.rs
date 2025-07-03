@@ -107,4 +107,43 @@ mod tests {
             "Signature should be invalid for different message"
         );
     }
+
+    #[test]
+    fn test_rfc6979_deterministic_nonces() {
+        // Test that RFC 6979 produces deterministic signatures
+        let privkey_bytes = [0x42u8; 32]; // Fixed test key
+        let private_key = PrivateKey::from_bytes(&privkey_bytes).unwrap();
+
+        let message = b"deterministic test";
+        let h = hash_message(message);
+
+        // Sign the same message multiple times
+        let signature1 = private_key.sign(&h).unwrap();
+        let signature2 = private_key.sign(&h).unwrap();
+        let signature3 = private_key.sign(&h).unwrap();
+
+        // All signatures should be identical (deterministic nonces)
+        assert_eq!(
+            signature1.r, signature2.r,
+            "r values should be deterministic"
+        );
+        assert_eq!(
+            signature1.s, signature2.s,
+            "s values should be deterministic"
+        );
+        assert_eq!(
+            signature2.r, signature3.r,
+            "r values should be deterministic"
+        );
+        assert_eq!(
+            signature2.s, signature3.s,
+            "s values should be deterministic"
+        );
+
+        println!("RFC 6979 deterministic nonces working correctly");
+        println!(
+            "  Same inputs always produce: r = 0x{:064x}, s = 0x{:064x}",
+            signature1.r, signature1.s
+        );
+    }
 }
