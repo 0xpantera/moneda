@@ -28,3 +28,24 @@ pub enum PointError {
     #[error("Field operation failed: {0}")]
     FieldError(#[from] FieldError),
 }
+
+#[derive(Error, Debug, PartialEq)]
+pub enum EcdsaError {
+    #[error("Invalid private key")]
+    InvalidPrivateKey,
+
+    #[error("Invalid nonce")]
+    InvalidNonce,
+
+    #[error("Invalid hash")]
+    InvalidHash,
+
+    #[error("Invalid r value")]
+    InvalidR,
+
+    #[error("Invalid modulus")]
+    InvalidModulus,
+
+    #[error("Field operation failed: {0}")]
+    FieldError(#[from] FieldError),
+}
