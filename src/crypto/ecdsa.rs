@@ -1,7 +1,7 @@
 use crate::crypto::keys::PrivateKey;
 use crate::curves::secp256k1::Secp256k1Params;
 use crate::errors::EcdsaError;
-use k256::elliptic_curve::bigint::{Encoding, U256};
+use k256::elliptic_curve::bigint::{Encoding, NonZero, U256};
 use k256::elliptic_curve::point::AffineCoordinates;
 use k256::elliptic_curve::{Field, PrimeField};
 use k256::{ProjectivePoint, Scalar};
@@ -29,6 +29,9 @@ impl PrivateKey {
             let mut x_bytes = [0u8; 32];
             x_bytes.copy_from_slice(&x_coord);
             let r = U256::from_be_bytes(x_bytes);
+            let order = Secp256k1Params::order();
+            let order_nz = NonZero::new(order).unwrap();
+            let r = r % order_nz;
 
             // If r = 0, try again with new nonce
             if r == U256::ZERO {
@@ -120,6 +123,9 @@ pub fn verify(public_key: &ProjectivePoint, message_hash: &U256, signature: &Sig
     let mut result_x_bytes = [0u8; 32];
     result_x_bytes.copy_from_slice(&result_x_coord);
     let result_r = U256::from_be_bytes(result_x_bytes);
+
+    let order_nz = NonZero::new(order).unwrap();
+    let result_r = result_r % order_nz;
 
     result_r == signature.r
 }
